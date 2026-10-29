@@ -14,59 +14,70 @@ AddOption(
 # TODO: Do not copy environment after godot-cpp/test is updated <https://github.com/godotengine/godot-cpp/blob/master/test/SConstruct>.
 env = SConscript("godot-cpp/SConstruct")
 
-# Check homebrew path
-homebrew_path = '/opt/homebrew'
-if os.path.exists(homebrew_path):
-    print(f"Homebrew detected at {homebrew_path}")
-    env.Append(CPPPATH=[f'{homebrew_path}/include'])
-    env.Append(LIBPATH=[f'{homebrew_path}/lib'])
+# Check homebrew path on macos
+if env["platform"] == "macos":
+    homebrew_path = '/opt/homebrew'
+    if os.path.exists(homebrew_path):
+        print(f"Homebrew detected at {homebrew_path}")
+        env.Append(CPPPATH=[f'{homebrew_path}/include'])
+        env.Append(LIBPATH=[f'{homebrew_path}/lib'])
 
-    # add homebrew pkg-config path to env
-    if 'PKG_CONFIG_PATH' in os.environ:
-        env['ENV']['PKG_CONFIG_PATH'] = f"{homebrew_path}/lib/pkgconfig:{os.environ.get('PKG_CONFIG_PATH', '')}"
-# else:
-#     print("Homebrew not detected, using default paths")
-    # env.Append(CPPPATH=['/usr/local/include'])
+        # add homebrew pkg-config path to env
+        if 'PKG_CONFIG_PATH' in os.environ:
+            env['ENV']['PKG_CONFIG_PATH'] = f"{homebrew_path}/lib/pkgconfig:{os.environ.get('PKG_CONFIG_PATH', '')}"
 
-if os.path.exists('/usr/local/lib'):
-    env.Append(LIBPATH=['/usr/local/lib'])
+    if os.path.exists('/usr/local/lib'):
+        env.Append(LIBPATH=['/usr/local/lib'])
 
-# Check linuxbrew path
-linuxbrew_path = '/home/linuxbrew/.linuxbrew'
-if os.path.exists(linuxbrew_path):
-    print(f"Linuxbrew detected at {linuxbrew_path}")
-    env.Append(CPPPATH=[f'{linuxbrew_path}/include'])
-    env.Append(LIBPATH=[f'{linuxbrew_path}/lib'])
+    env.Append(LIBS=['zmq'])
 
-    # add linuxbrew pkg-config path to env
-    if 'PKG_CONFIG_PATH' in os.environ:
-        env['ENV']['PKG_CONFIG_PATH'] = f"{linuxbrew_path}/lib/pkgconfig:{os.environ.get('PKG_CONFIG_PATH', '')}"
+# Check linuxbrew / vcpkg path on linux
+if env["platform"] == "linux":
+    linuxbrew_path = '/home/linuxbrew/.linuxbrew'
+    if os.path.exists(linuxbrew_path):
+        print(f"Linuxbrew detected at {linuxbrew_path}")
+        env.Append(CPPPATH=[f'{linuxbrew_path}/include'])
+        env.Append(LIBPATH=[f'{linuxbrew_path}/lib'])
 
-# Check vcpkg path
-vcpkg_path = 'C:/vcpkg'
-if os.path.exists(vcpkg_path):
-    print(f"VCPKG detected at {vcpkg_path}")
-    env.Append(CPPPATH=[f'{vcpkg_path}/installed/x64-windows/include'])
-    env.Append(LIBPATH=[f'{vcpkg_path}/installed/x64-windows/lib'])
+        # add linuxbrew pkg-config path to env
+        if 'PKG_CONFIG_PATH' in os.environ:
+            env['ENV']['PKG_CONFIG_PATH'] = f"{linuxbrew_path}/lib/pkgconfig:{os.environ.get('PKG_CONFIG_PATH', '')}"
 
-    # add vcpkg pkg-config path to env
-    if 'PKG_CONFIG_PATH' in os.environ:
-        env['ENV']['PKG_CONFIG_PATH'] = f"{vcpkg_path}/installed/x64-windows/share/pkgconfig:{os.environ.get('PKG_CONFIG_PATH', '')}"
+    vcpkg_linux_path = os.path.expanduser('~/vcpkg')
+    if os.path.exists(vcpkg_linux_path):
+        print(f"VCPKG detected at {vcpkg_linux_path}")
+        env.Append(CPPPATH=[f'{vcpkg_linux_path}/installed/x64-linux/include'])
+        env.Append(LIBPATH=[f'{vcpkg_linux_path}/installed/x64-linux/lib'])
 
-vcpkg_linux_path = os.path.expanduser('~/vcpkg')
+        # add vcpkg pkg-config path to env
+        if 'PKG_CONFIG_PATH' in os.environ:
+            env['ENV']['PKG_CONFIG_PATH'] = f"{vcpkg_linux_path}/installed/x64-linux/share/pkgconfig:{os.environ.get('PKG_CONFIG_PATH', '')}"
 
-if os.path.exists(vcpkg_linux_path):
-    print(f"VCPKG detected at {vcpkg_linux_path}")
-    env.Append(CPPPATH=[f'{vcpkg_linux_path}/installed/x64-linux/include'])
-    env.Append(LIBPATH=[f'{vcpkg_linux_path}/installed/x64-linux/lib'])
+    env.Append(LIBS=['zmq'])
 
-    # add vcpkg pkg-config path to env
-    if 'PKG_CONFIG_PATH' in os.environ:
-        env['ENV']['PKG_CONFIG_PATH'] = f"{vcpkg_linux_path}/installed/x64-linux/share/pkgconfig:{os.environ.get('PKG_CONFIG_PATH', '')}"
+# Check vcpkg path on windows
+if env["platform"] == "windows":
+    vcpkg_path = 'C:/vcpkg'
+    if os.path.exists(vcpkg_path):
+        print(f"VCPKG detected at {vcpkg_path}")
+        vcpkg_lib_dir = f'{vcpkg_path}/installed/x64-windows/lib'
+        env.Append(CPPPATH=[f'{vcpkg_path}/installed/x64-windows/include'])
+        env.Append(LIBPATH=[vcpkg_lib_dir])
 
-env.Append(LIBS=['libzmq'])
+        # add vcpkg pkg-config path to env
+        if 'PKG_CONFIG_PATH' in os.environ:
+            env['ENV']['PKG_CONFIG_PATH'] = f"{vcpkg_path}/installed/x64-windows/share/pkgconfig:{os.environ.get('PKG_CONFIG_PATH', '')}"
 
-env.Append(CXXFLAGS=[f'-I{inc}' for inc in env['CPPPATH']])
+        zmq_libs = glob(f'{vcpkg_lib_dir}/libzmq*.lib')
+        if zmq_libs:
+            env.Append(LIBS=[Path(zmq_libs[0]).stem])
+        else:
+            env.Append(LIBS=['libzmq'])
+    else:
+        env.Append(LIBS=['libzmq'])
+
+if env["platform"] != "web":
+    env.Append(CXXFLAGS=[f'-I{inc}' for inc in env['CPPPATH']])
 
 # Add source files.
 env.Append(CPPPATH=["src/"])

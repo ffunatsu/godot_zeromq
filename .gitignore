@@ -2,6 +2,7 @@
 .scons-cache/
 *.os
 *.obj
+*.o
 
 # SConstruct
 .sconf_temp

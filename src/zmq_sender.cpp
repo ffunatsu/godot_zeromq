@@ -1,5 +1,6 @@
 #include "zmq_sender.hpp"
 
+#include <cassert>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <godot_cpp/core/class_db.hpp>
 
@@ -115,6 +116,9 @@ void ZMQSender::init(String address, int socketType, int connectionMode, String 
     socket_filter = socketFilter;
     auto_start_receive_thread_after_send = autoStartReceiveThreadAfterSend;
 
+    mutex = memnew(Mutex);
+
+#ifndef __EMSCRIPTEN__
     context = zmq::context_t(1);
     socket = zmq::socket_t(context, socketType);
 
@@ -147,11 +151,13 @@ void ZMQSender::init(String address, int socketType, int connectionMode, String 
     // UtilityFunctions::print("ZMQSender::init socket connected to: " + address);
 
     thread = memnew(Thread);
-    mutex = memnew(Mutex);
 
     // isThreadRunning = true;
     // auto callable = Callable(this, "_thread_func");
     // thread->start(callable);
+#else
+    UtilityFunctions::push_warning("ZMQSender is not supported on Web platform.");
+#endif
 }
 
 void ZMQSender::_ready() {
@@ -165,6 +171,7 @@ void ZMQSender::_process(double delta) {
 void ZMQSender::_thread_func() {
     // UtilityFunctions::print("ZMQSender::_thread_func()");
 
+#ifndef __EMSCRIPTEN__
     while (isThreadRunning) {
         if (need_to_start_receiving) {
             need_to_start_receiving = false;
@@ -195,36 +202,43 @@ void ZMQSender::_thread_func() {
             mutex->unlock();
         }
     }
+#endif
 }
 
 void ZMQSender::stop() {
     // UtilityFunctions::print("ZMQSender::stop()");
 
+#ifndef __EMSCRIPTEN__
     if( isThreadRunning ) {
         isThreadRunning = false;
-        thread->wait_to_finish();
+        if (thread) {
+            thread->wait_to_finish();
+        }
     }
 
     socket.close();
     context.close();
+#else
+    isThreadRunning = false;
+#endif
 }
 
 void ZMQSender::onMessageString(Callable callback) {
     // UtilityFunctions::print("ZMQSender::onMessageString()");
 
-    mutex->lock();
+    if (mutex) mutex->lock();
     receive_with_bytes = false;
     stringMessageHandler = callback;
-    mutex->unlock();
+    if (mutex) mutex->unlock();
 }
 
 void ZMQSender::onMessageBytes(Callable callback) {
     // UtilityFunctions::print("ZMQSender::onMessageBytes()");
 
-    mutex->lock();
+    if (mutex) mutex->lock();
     receive_with_bytes = true;
     bytesMessageHandler = callback;
-    mutex->unlock();
+    if (mutex) mutex->unlock();
 }
 
 void ZMQSender::sendString(String message) {
@@ -233,6 +247,7 @@ void ZMQSender::sendString(String message) {
 }
 
 void ZMQSender::sendBytes(PackedByteArray message) {
+#ifndef __EMSCRIPTEN__
     // zmq::message_t msg(message.size());
     // memcpy(msg.data(), message.ptr(), message.size());
     zmq::message_t msg(message.ptr(), message.size());
@@ -241,10 +256,12 @@ void ZMQSender::sendBytes(PackedByteArray message) {
     if (auto_start_receive_thread_after_send) {
         beginReceiveRequest();
     }
+#endif
 }
 
 void ZMQSender::beginReceiveThread() {
-    if (isThreadRunning) {
+#ifndef __EMSCRIPTEN__
+    if (isThreadRunning && thread) {
         thread->wait_to_finish();
     }
 
@@ -256,12 +273,15 @@ void ZMQSender::beginReceiveThread() {
     isThreadRunning = true;
     auto callable = Callable(this, "_thread_func");
     thread->start(callable);
+#endif
 }
 
 void ZMQSender::beginReceiveRequest() {
     need_to_start_receiving = true;
 
+#ifndef __EMSCRIPTEN__
     if(!isThreadRunning) {
         beginReceiveThread();
     }
+#endif
 }

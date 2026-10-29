@@ -1,6 +1,8 @@
 #pragma once
 
+#ifndef __EMSCRIPTEN__
 #include "zmq.hpp"
+#endif
 
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/thread.hpp>
@@ -21,13 +23,15 @@ public:
     static String socket_type_to_string(int socketType);
     static String connection_mode_to_string(int connectionMode);
 
-    Thread* thread;
-    Mutex* mutex;
+    Thread* thread = nullptr;
+    Mutex* mutex = nullptr;
     bool receive_with_bytes = false;
     Callable stringMessageHandler;
     Callable bytesMessageHandler;
+#ifndef __EMSCRIPTEN__
     zmq::context_t context;
     zmq::socket_t socket;
+#endif
     String addr;
     int socket_type;
     int connection_mode;
